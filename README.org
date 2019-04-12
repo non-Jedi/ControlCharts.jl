@@ -1,0 +1,5 @@
+* ControlCharts.jl
+This package provides facilities for working with [[https://en.wikipedia.org/wiki/Control_chart][control charts]]. Initially,
+support will be for Shewart control charts plotted with [[https://gadflyjl.org][Gadfly.jl]], but
+additional varieties of control charts (CUSUM, EWMA, etc.) and additional
+plotting backends may be supported in the future.
