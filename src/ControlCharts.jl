@@ -1,13 +1,8 @@
 module ControlCharts
 
-#module Calc
-#
-#function grouped_std(x, groups)
-#    @assert length(x) == length(groups)
-#
-#end#module
+export Stat, Geom, plot
 
-export Stat, Geom
+import Gadfly: plot
 
 module Stat
 
@@ -58,11 +53,9 @@ end#module
 
 module Geom
 
-import Colors: Color, RGBA
-import Compose: compose!, context, line, linewidth, stroke, strokedash, svgclass
+import Compose: compose, context
 import Gadfly
-import Gadfly.Geom: element_aesthetics, inherit, render, Shape
-import Measures: Measure
+import Gadfly.Geom: line, point, ribbon, render, element_aesthetics
 import ..Stat
 
 abstract type ControlChart <: Gadfly.GeometryElement end
@@ -82,29 +75,6 @@ Control limits will be taken from `ymin` and `ymax`.
 const shewart = ShewartChart
 
 element_aesthetics(::ShewartChart) = [:x, :y, :ymin, :ymax]
-
-function render(geom::ShewartChart, theme::Gadfly.Theme, aes::Gadfly.Aesthetics)
-    Gadfly.assert_aesthetics_defined("Geom.xbars", aes,
-                                     :x, :y, :ymin, :ymax)
-    Gadfly.assert_aesthetics_equal_length("Geom.xbars", aes,
-                                          :x, :y, :ymin, :ymax)
-
-    n = length(aes.x)
-    default_aes = Gadfly.Aesthetics()
-    default_aes.color = fill(RGBA{Float32}(theme.default_color), n)
-    default_aes.size = Measure[theme.point_size]
-    aes = inherit(aes, default_aes)
-
-    root = context()
-    compose!(root, (context(), line(collect(zip(aes.x, aes.y))),
-                    stroke([first(aes.color)]),
-                    strokedash(Gadfly.get_stroke_vector(theme.line_style[1])),
-                    svgclass("geometry"), linewidth(theme.line_width)))
-    compose!(root, (context(),
-                    (context(), Shape.circle(aes.x, aes.y, aes.size), svgclass("marker")),
-                    fill(aes.color), stroke(aes.color)))
-    root
-end#function
 
 end#module
 
