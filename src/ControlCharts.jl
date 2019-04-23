@@ -4,6 +4,8 @@ export Stat, Geom, plot
 
 import Gadfly: plot
 
+include("types.jl")
+
 module Stat
 
 import Gadfly

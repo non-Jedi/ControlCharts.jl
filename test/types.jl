@@ -10,8 +10,11 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
 # details.
 
-using Test
+using ControlCharts.Types
 
-@testset "ControlCharts.jl" begin
-    include("types.jl")
-end#testset
+@testset "Constructors" begin
+    @test EWMA(0.5, 2, [1,2,3,4]).λ ≈ 0.5
+    @test_throws DomainError EWMA(1.1, 2, [1,2,3,4])
+    @test_throws DomainError EWMA(0, 2, [1,2,3,4])
+    @test_throws DomainError EWMA(-5, 2, [1,2,3,4])
+end
