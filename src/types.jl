@@ -13,7 +13,7 @@
 module Types
 
 export ControlChart, calculate,
-    TabularCumulativeSum, CUSUM, ExponentiallyWeightedMovingAverage, EWMA
+    TabularCumulativeSum, CUSUM, BasicExponentiallyWeightedMovingAverage, EWMA
 
 import Statistics: mean, std
 
@@ -31,7 +31,7 @@ not exceed in the negative and positive directions. This function is
 returned by calling `calculate` on a `ControlSeries`.
 """
 struct ControlChart{T, V <: AbstractVector{T}, C <: ControlSeries{T,V},
-                    N, Z <: NTuple{N,V}}
+                    NAMES, N, Z <: NamedTuple{NAMES, NTuple{N,V}}}
     z::Z
     LCL::V
     UCL::V
@@ -105,16 +105,14 @@ function CUSUM(x::AbstractVector{V}, k::K, h::H, μ::MU) where {V, K, H, MU}
 end#constructor
 
 function calculate(series::CUSUM{T,V}) where {T,V}
-    cpositive = similar(series.x)
-    cnegative = similar(series.x)
+    c⁻ = similar(series.x)
+    c⁺ = similar(series.x)
 
-    cpositive[1] = max(zero(T), series.x[1] - series.μ - series.K)
-    cnegative[1] = min(zero(T), series.x[1] - series.μ + series.K)
-    for i in 2:length(cpositive)
-        cpositive[i] = max(zero(T),
-                           series.x[i] - series.μ - series.K + cpositive[i-1])
-        cnegative[i] = min(zero(T),
-                           series.x[i] - series.μ + series.K + cnegative[i-1])
+    c⁻[1] = min(zero(T), series.x[1] - series.μ + series.K)
+    c⁺[1] = max(zero(T), series.x[1] - series.μ - series.K)
+    for i in 2:length(c⁺)
+        c⁻[i] = min(zero(T), series.x[i] - series.μ + series.K + c⁻[i-1])
+        c⁺[i] = max(zero(T), series.x[i] - series.μ - series.K + c⁺[i-1])
     end#for
 
     lcl = similar(series.x)
@@ -122,19 +120,23 @@ function calculate(series::CUSUM{T,V}) where {T,V}
     lcl .= Ref(-series.H)
     ucl .= Ref(+series.H)
 
-    ControlChart((cnegative, cpositive), lcl, ucl, series)
+    ControlChart((C⁻=c⁻, C⁺=c⁺), lcl, ucl, series)
 end#function
 
 # Exponentially Weighted Moving Average Chart (EWMA)
 #---------------------------------------------------
 
-struct ExponentiallyWeightedMovingAverage{T, V<:AbstractVector{T}} <: ControlSeries{T,V}
+abstract type ExponentiallyWeightedMovingAverage{T,V} <: ControlSeries{T,V} end
+
+struct BasicExponentiallyWeightedMovingAverage{
+    T, V<:AbstractVector{T}
+} <: ExponentiallyWeightedMovingAverage{T,V}
     x::V
     λ::Float64
     L::Float64
     μ::T
     σ::T
-    function ExponentiallyWeightedMovingAverage(
+    function BasicExponentiallyWeightedMovingAverage(
         x::V, λ::Float64, l::Float64, μ::T, σ::T
     ) where {T, V<:AbstractVector{T}}
         if λ <= 0 || λ > 1
@@ -190,7 +192,7 @@ is the process target.
   - Year
     - 2013
 """
-const EWMA = ExponentiallyWeightedMovingAverage
+const EWMA = BasicExponentiallyWeightedMovingAverage
 
 # try to make sure EWMA works even if types aren't as expected
 function EWMA(
@@ -223,7 +225,7 @@ function calculate(cs::EWMA)
         lcl .= Ref(μ) .- cl
         ucl .= Ref(μ) .+ cl
     end#let
-    ControlChart((z,), lcl, ucl, cs)
+    ControlChart((z=z,), lcl, ucl, cs)
 end#function
 
 end#module Types
