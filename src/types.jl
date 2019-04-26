@@ -13,9 +13,11 @@
 module Types
 
 export ControlChart, calculate,
-    TabularCumulativeSum, CUSUM, BasicExponentiallyWeightedMovingAverage, EWMA
+    TabularCumulativeSum, CUSUM, BasicExponentiallyWeightedMovingAverage, EWMA,
+    MovingCenterlineExponentiallyWeightedMovingAverage, MCEWMA
 
 import Statistics: mean, std
+import NLopt: Opt, optimize
 
 "Represents a series of values to be turned into a control chart."
 abstract type ControlSeries{T,V} end
@@ -154,7 +156,7 @@ end#struct
 """
     EWMA(x, λ, l, μ, σ)
 
-Represents an exponentially weighted moving average series on `x`.
+Exponentially weighted moving average series on `x`.
 
 Each point `z` in the EWMA is calculated according to:
 
@@ -163,7 +165,7 @@ z[0] = μ
 z[i] = λ * x[i] + (1 - λ) * z[i-1]
 ```
 
-where `λ` is a constant.
+Where `λ` is a constant between 0 and 1.
 
 The LCL and UCL are calculated according to:
 
@@ -210,13 +212,18 @@ end#constructor
 """
 EWMA(x::AbstractVector; λ=0.2, L=3.0, μ=mean(x), σ=std(x)) = EWMA(x, λ, L, μ, σ)
 
-function calculate(cs::EWMA)
-    z = similar(cs.x)
+function predict_ewma(x::AbstractVector{T}, λ::Float64, μ::T) where T
+    z = similar(x)
 
-    z[1] = cs.λ * cs.x[1] + (1 - cs.λ)cs.μ
+    z[1] = λ * x[1] + (1 - λ)μ
     for i in 2:length(z)
-        z[i] = cs.λ * cs.x[i] + (1 - cs.λ)*z[i-1]
+        z[i] = λ * x[i] + (1 - λ)*z[i-1]
     end#for
+    z
+end#function
+
+function calculate(cs::EWMA)
+    z = predict_ewma(cs.x, cs.λ, cs.μ)
 
     lcl = similar(cs.x)
     ucl = similar(cs.x)
@@ -226,6 +233,110 @@ function calculate(cs::EWMA)
         ucl .= Ref(μ) .+ cl
     end#let
     ControlChart((z=z,), lcl, ucl, cs)
+end#function
+
+struct MovingCenterlineExponentiallyWeightedMovingAverage{
+    T, V <: AbstractVector{T}
+} <: ExponentiallyWeightedMovingAverage{T,V}
+    x::V
+    λ::Float64
+    L::Float64
+    μ::T
+    σ::T
+    function MovingCenterlineExponentiallyWeightedMovingAverage(
+        x::V, λ::Float64, l::Float64, μ::T, σ::T
+    ) where {T, V<:AbstractVector{T}}
+        if λ <= 0 || λ > 1
+            throw(DomainError(λ, "Weight must be 0 < λ <= 1"))
+        elseif l <= 0
+            throw(DomainError(l, "Control limit width must be positive"))
+        elseif σ < 0
+            throw(DomainError(σ, "Standard deviation must be positive"))
+        else
+            new{T, V}(x, λ, l, μ, σ)
+        end#if
+    end#constructor
+end#struct
+
+"""
+    MCEWMA(x; L=3.0, μ=mean(x), σ, λ)
+
+Exponentially weighted moving average series with moving center-line on `x`.
+
+Each point `z` in the EWMA is calculated according to:
+
+```
+z[0] = μ
+z[i] = λ * x[i] + (1 - λ) * z[i-1]
+```
+
+Where `μ` is the chosern starting value of `z`, and `λ` is a constant between 0
+and 1. If not specified, `λ` is chosen as the value that minimizes the sum of
+squared prediction error `e[t]^2`.
+
+```
+e[t] = x[t] - z[t]
+```
+
+The LCL and UCL are calculated at point `t` as:
+
+```
+lcl[t+1] = z[t] - L*σ
+ucl[t+1] = z[t] + L*σ
+```
+
+Where `L` is a constant and `σ` is the standard deviation of the
+errors `e[t]`. If not specified, `σ` is calculated as:
+
+```
+σ = sum(e.^2) / length(x)
+```
+"""
+const MCEWMA = MovingCenterlineExponentiallyWeightedMovingAverage
+
+function MCEWMA(
+    x::AbstractVector{T1}; λ=nothing, L=3.0,
+    μ::T2=mean(x), σ=nothing
+) where {T1, T2}
+    T = promote_type(T1, T2)
+
+    x₁ = similar(x, T)
+    x₁ .= x
+
+    λ₁ = if isnothing(λ)
+        # Find optimal value of λ using nonlinear optimization
+        # TODO: NLOpt expects Float64 inputs and outputs; how to generically
+        # convert e.g. Unitful values to Float64?
+        min_objective(v::Vector, grad::Vector) =
+            sum((i - j)^2 for (i, j) in zip(x, predict_ewma(x₁, v[1], μ)))
+        opt = Opt(:GN_DIRECT_L, 1)
+        opt.min_objective = min_objective
+        opt.lower_bounds = [0]
+        opt.upper_bounds = [1]
+        opt.maxtime = 5
+        opt.xtol_abs = 0.005
+        (_, optx, ret) = optimize(opt, [0.5])
+
+        if !in(ret, (:SUCCESS, :XTOL_REACHED))
+            error("NLopt $ret: Unable to calculate suitable value for `λ`")
+        end#if
+
+        Float64(optx[1])
+    else
+        Float64(λ)
+    end#if
+
+    L₁ = convert(Float64, L)
+
+    μ₁ = convert(T, μ)
+
+    σ₁ = if isnothing(σ)
+        sqrt(λ₁ / length(x))
+    else
+        convert(T, σ)
+    end#if
+
+    MCEWMA(x₁, λ₁, L₁, μ₁, σ₁)
 end#function
 
 end#module Types
