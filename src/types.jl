@@ -17,7 +17,7 @@ export ControlChart, calculate,
     MovingCenterlineExponentiallyWeightedMovingAverage, MCEWMA
 
 import Statistics: mean, std
-import NLopt: Opt, optimize
+import Optim
 
 "Represents a series of values to be turned into a control chart."
 abstract type ControlSeries{T,V} end
@@ -291,6 +291,40 @@ errors `e[t]`. If not specified, `σ` is calculated as:
 ```
 σ = sum(e.^2) / length(x)
 ```
+
+# References
+
+- Introduction to Statistical Quality Control
+  - Chapter
+    - 10.4: SPC with Autocorrelated Process Data
+  - Pages
+    - 468--471
+  - Author:
+    - Montgomery, Douglas C.
+  - ISBN:
+    - 978-1-118-14681-1
+  - Publisher
+    - John Wiley & Sons, Inc.
+  - Year
+    - 2013
+- Optim: A Mathematical Optimization Package for Julia
+  - Author
+    - Mogensen, Patrick Kofod
+    - Riseth, Asbjørn Nilsen
+  - Journal
+    - Journal of Open Source Software
+  - Year
+    - 2018
+  - Volume
+    - 3
+  - Number
+    - 24
+  - Pages
+    - 615
+  - DOI
+    - 10.21105/joss.00615
+  - URL
+    - https://github.com/JuliaNLSolvers/Optim.jl
 """
 const MCEWMA = MovingCenterlineExponentiallyWeightedMovingAverage
 
@@ -303,32 +337,25 @@ function MCEWMA(
     x₁ = similar(x, T)
     x₁ .= x
 
+    μ₁ = convert(T, μ)
+
     λ₁ = if isnothing(λ)
         # Find optimal value of λ using nonlinear optimization
-        # TODO: NLOpt expects Float64 inputs and outputs; how to generically
-        # convert e.g. Unitful values to Float64?
-        min_objective(v::Vector, grad::Vector) =
-            sum((i - j)^2 for (i, j) in zip(x, predict_ewma(x₁, v[1], μ)))
-        opt = Opt(:GN_DIRECT_L, 1)
-        opt.min_objective = min_objective
-        opt.lower_bounds = [0]
-        opt.upper_bounds = [1]
-        opt.maxtime = 5
-        opt.xtol_abs = 0.005
-        (_, optx, ret) = optimize(opt, [0.5])
+        min_objective(λ::Float64) = sum(zip(x₁, predict_ewma(x₁, λ, μ₁))) do (i, j)
+            (i - j)^2
+        end#sum
 
-        if !in(ret, (:SUCCESS, :XTOL_REACHED))
-            error("NLopt $ret: Unable to calculate suitable value for `λ`")
+        res = Optim.optimize(min_objective, 0.0, 1.0)
+        if !Optim.converged(res)
+            error("Optim: Unable to find minimum λ value")
         end#if
 
-        Float64(optx[1])
+        Optim.minimizer(res)
     else
-        Float64(λ)
+        convert(Float64, λ)
     end#if
 
     L₁ = convert(Float64, L)
-
-    μ₁ = convert(T, μ)
 
     σ₁ = if isnothing(σ)
         sqrt(λ₁ / length(x))
