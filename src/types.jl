@@ -16,6 +16,7 @@ export ControlChart, calculate,
     TabularCumulativeSum, CUSUM, BasicExponentiallyWeightedMovingAverage, EWMA,
     MovingCenterlineExponentiallyWeightedMovingAverage, MCEWMA
 
+import ..RepeatArrays: RepeatVector
 import Statistics: mean, std
 import Optim
 
@@ -32,11 +33,12 @@ vectors defining points where each point in each vector in `x` must
 not exceed in the negative and positive directions. This function is
 returned by calling `calculate` on a `ControlSeries`.
 """
-struct ControlChart{T, V <: AbstractVector{T}, C <: ControlSeries{T,V},
+struct ControlChart{T, V <: AbstractVector{T}, VCL <: AbstractVector{T},
+                    C <: ControlSeries{T,V},
                     NAMES, N, Z <: NamedTuple{NAMES, NTuple{N,V}}}
     z::Z
-    LCL::V
-    UCL::V
+    LCL::VCL
+    UCL::VCL
     control_series::C
 end#struct
 
@@ -117,10 +119,8 @@ function calculate(series::CUSUM{T,V}) where {T,V}
         c⁺[i] = max(zero(T), series.x[i] - series.μ - series.K + c⁺[i-1])
     end#for
 
-    lcl = similar(series.x)
-    ucl = similar(series.x)
-    lcl .= Ref(-series.H)
-    ucl .= Ref(+series.H)
+    lcl = RepeatVector(-series.H, length(series.x))
+    ucl = RepeatVector(+series.H, length(series.x))
 
     ControlChart((C⁻=c⁻, C⁺=c⁺), lcl, ucl, series)
 end#function

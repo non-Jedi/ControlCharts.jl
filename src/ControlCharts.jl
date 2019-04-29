@@ -4,6 +4,7 @@ export Stat, Geom, plot
 
 import Gadfly: plot
 
+include("repeatarrays.jl")
 include("types.jl")
 
 module Stat
