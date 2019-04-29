@@ -1,4 +1,6 @@
 * ControlCharts.jl
+[[https://travis-ci.org/non-Jedi/ControlCharts.jl][https://travis-ci.org/non-Jedi/ControlCharts.jl.svg?branch=master]]
+
 This package provides facilities for working with [[https://en.wikipedia.org/wiki/Control_chart][control charts]]. Initially,
 support will be for Shewart control charts plotted with [[https://gadflyjl.org][Gadfly.jl]], but
 additional varieties of control charts (CUSUM, EWMA, etc.) and additional
