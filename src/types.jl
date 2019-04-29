@@ -103,7 +103,7 @@ const CUSUM = TabularCumulativeSum
 function CUSUM(x::AbstractVector{V}, k::K, h::H, μ::MU) where {V, K, H, MU}
     T = promote_type(promote_type(promote_type(V, K), H), MU)
     xt = similar(x, T)
-    xt .= x
+    @inbounds xt .= x
     CUSUM(x::AbstractVector{T},
           convert(T, k)::T, convert(T, h), convert(T, μ)::T)
 end#constructor
@@ -112,12 +112,15 @@ function calculate(series::CUSUM{T,V}) where {T,V}
     c⁻ = similar(series.x)
     c⁺ = similar(series.x)
 
-    c⁻[1] = min(zero(T), series.x[1] - series.μ + series.K)
-    c⁺[1] = max(zero(T), series.x[1] - series.μ - series.K)
-    for i in 2:length(c⁺)
-        c⁻[i] = min(zero(T), series.x[i] - series.μ + series.K + c⁻[i-1])
-        c⁺[i] = max(zero(T), series.x[i] - series.μ - series.K + c⁺[i-1])
-    end#for
+    if !isempty(series.x)
+        # TODO: This assumes arrays are one-indexed
+        @inbounds c⁻[1] = min(zero(T), series.x[1] - series.μ + series.K)
+        @inbounds c⁺[1] = max(zero(T), series.x[1] - series.μ - series.K)
+        @inbounds for i in 2:length(c⁺)
+            c⁻[i] = min(zero(T), series.x[i] - series.μ + series.K + c⁻[i-1])
+            c⁺[i] = max(zero(T), series.x[i] - series.μ - series.K + c⁺[i-1])
+        end#for
+    end#if
 
     lcl = RepeatVector(-series.H, length(series.x))
     ucl = RepeatVector(+series.H, length(series.x))
@@ -202,7 +205,7 @@ function EWMA(
 ) where {T1, T2}
     T = promote_type(T1, T2)
     xt = similar(x, T)
-    xt .= x
+    @inbounds xt .= x
     EWMA(xt, convert(Float64, λ), convert(Float64, l),
          convert(T, μ), convert(T, σ))
 end#constructor
@@ -215,10 +218,13 @@ EWMA(x::AbstractVector; λ=0.2, L=3.0, μ=mean(x), σ=std(x)) = EWMA(x, λ, L, �
 function predict_ewma(x::AbstractVector{T}, λ::Float64, μ::T) where T
     z = similar(x)
 
-    z[1] = λ * x[1] + (1 - λ)μ
-    for i in 2:length(z)
-        z[i] = λ * x[i] + (1 - λ)*z[i-1]
-    end#for
+    if !isempty(x)
+        # TODO: This assumes arrays are one-indexed
+        @inbounds z[1] = λ * x[1] + (1 - λ)μ
+        @inbounds for i in 2:length(z)
+            z[i] = λ * x[i] + (1 - λ)*z[i-1]
+        end#for
+    end#if
     z
 end#function
 
@@ -229,8 +235,8 @@ function calculate(cs::EWMA)
     ucl = similar(cs.x)
     let σ = cs.σ, λ = cs.λ, l = cs.L, μ = cs.μ
         cl = (l*σ*sqrt(λ*(1 - (1 - λ)^(2i)) / (2 - λ)) for i in 1:length(lcl))
-        lcl .= Ref(μ) .- cl
-        ucl .= Ref(μ) .+ cl
+        @inbounds lcl .= Ref(μ) .- cl
+        @inbounds ucl .= Ref(μ) .+ cl
     end#let
     ControlChart((z=z,), lcl, ucl, cs)
 end#function
@@ -335,7 +341,7 @@ function MCEWMA(
     T = promote_type(T1, T2)
 
     x₁ = similar(x, T)
-    x₁ .= x
+    @inbounds x₁ .= x
 
     μ₁ = convert(T, μ)
 

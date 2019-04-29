@@ -33,8 +33,10 @@ function iterate(a::RepeatArray{T,N}, s::Int=1) where {T,N}
 end#function
 
 size(a::RepeatArray) = a.dims
-getindex(a::RepeatArray, i::Int) =
-    0 < i <= prod(a.dims) ? a.value : throw(BoundsError(a, i))
+function getindex(a::RepeatArray, i::Int)
+    @boundscheck checkbounds(a, i)
+    a.value
+end#function
 IndexStyle(::Type{RepeatArray{T,N}}) where {T,N} = IndexLinear()
 
 end#module RepeatArrays
