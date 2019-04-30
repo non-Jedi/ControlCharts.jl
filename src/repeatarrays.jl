@@ -24,14 +24,6 @@ end#struct
 const RepeatVector{T} = RepeatArray{T,1}
 RepeatVector(v::T, n::Int) where T = RepeatArray{T,1}(v, (n,))
 
-function iterate(a::RepeatArray{T,N}, s::Int=1) where {T,N}
-    if all(iszero.(a.dims))
-        nothing
-    else
-        s <= prod(a.dims) ? (a.value, s+1) : nothing
-    end#if
-end#function
-
 size(a::RepeatArray) = a.dims
 function getindex(a::RepeatArray, i::Int)
     @boundscheck checkbounds(a, i)

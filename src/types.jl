@@ -234,9 +234,11 @@ function calculate(cs::EWMA)
     lcl = similar(cs.x)
     ucl = similar(cs.x)
     let σ = cs.σ, λ = cs.λ, l = cs.L, μ = cs.μ
-        cl = (l*σ*sqrt(λ*(1 - (1 - λ)^(2i)) / (2 - λ)) for i in 1:length(lcl))
-        @inbounds lcl .= Ref(μ) .- cl
-        @inbounds ucl .= Ref(μ) .+ cl
+        @inbounds @simd for i in 1:length(lcl)
+            cl = l*σ*sqrt(λ*(1 - (1 - λ)^(2i)) / (2 - λ))
+            lcl[i] = Ref(μ) .- cl
+            ucl[i] = Ref(μ) .+ cl
+        end#for
     end#let
     ControlChart((z=z,), lcl, ucl, cs)
 end#function
