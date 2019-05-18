@@ -13,7 +13,7 @@
 # * Types.jl
 module Types
 
-export ControlChart, calculate,
+export ControlChart, calculate, ShewartSeries, Shewart,
     TabularCumulativeSum, CUSUM, BasicExponentiallyWeightedMovingAverage, EWMA,
     MovingCenterlineExponentiallyWeightedMovingAverage, MCEWMA
 
@@ -21,8 +21,16 @@ import ..RepeatArrays: RepeatVector
 import Statistics: mean, std
 import Optim
 
+# Each kind of control chart will have a "control series" representing the actual
+# source data to be plotted on the given kind of control chart. We
+# will call it a ~ControlSeries~.
+
 "Represents a series of values to be turned into a control chart."
 abstract type ControlSeries{T,V} end
+
+# When ~calculate~ is called on this ~ControlSeries~, a ~ControlChart~
+# will be generated with any values not in the actual data calculated
+# as needed. This ~ControlChart~ object can then be plotted directly.
 
 """
     ControlChart(z, lcl, ucl, control_series)
@@ -35,8 +43,7 @@ not exceed in the negative and positive directions. This function is
 returned by calling `calculate` on a `ControlSeries`.
 """
 struct ControlChart{T, V <: AbstractVector{T}, VCL <: AbstractVector{T},
-                    C <: ControlSeries{T,V},
-                    NAMES, N, Z <: NamedTuple{NAMES, NTuple{N,V}}}
+                    C <: ControlSeries{T,V}, Z <: NamedTuple}
     z::Z
     LCL::VCL
     UCL::VCL
@@ -58,12 +65,52 @@ Returns a `ControlChart` for a given series.
 function calculate end
 
 # ** Shewart Charts
+# *** Types
 
-# TODO: actually define Shewart chart stuff
+# TODO: docstring
+struct ShewartSeries{
+    T, V<:AbstractVector{T}
+} <: ControlSeries{T,V}
+    x::V
+    L::Float64
+    μ::T
+    σ::T
+    function ShewartSeries(
+        x::V, l::Float64, μ::T, σ::T
+    ) where {T, V<:AbstractVector{T}}
+        if l <= 0
+            throw(DomainError(l, "Control limit width must be positive"))
+        elseif σ < 0
+            throw(DomainError(σ, "Standard deviation must be positive"))
+        else
+            new{T, V}(x, l, μ, σ)
+        end#if
+    end#constructor
+end
 
-abstract type ShewartSeries{T,V} <: ControlSeries{T,V} end
+const Shewart = ShewartSeries
+
+function ShewartSeries(
+    x::AbstractVector{T2}, l::Real, μ::T1, σ::T1
+) where {T1, T2}
+    T = promote_type(T1, T2)
+    xt = similar(x, T)
+    @inbounds xt .= x
+    ShewartSeries(xt, convert(Float64, l), convert(T, μ), convert(T, σ))
+end#constructor
+
+ShewartSeries(x::AbstractVector; l=3.0, μ=mean(x), σ=std(x)) = ShewartSeries(x, l, μ, σ)
+
+# *** calculate
+function calculate(cs::ShewartSeries)
+    lcl = RepeatVector(cs.μ - cs.L * cs.σ, length(cs.x))
+    ucl = RepeatVector(cs.μ + cs.L * cs.σ, length(cs.x))
+    centerline = RepeatVector(cs.μ, length(cs.x))
+    ControlChart((x=cs.x, μ=centerline), lcl, ucl, cs)
+end#function
 
 # ** Cumulative Sum Charts (CUSUM)
+# *** Types
 
 abstract type CumulativeSum{T,V} <: ControlSeries{T,V} end
 
@@ -109,6 +156,8 @@ function CUSUM(x::AbstractVector{V}, k::K, h::H, μ::MU) where {V, K, H, MU}
           convert(T, k)::T, convert(T, h), convert(T, μ)::T)
 end#constructor
 
+# *** calculate
+
 function calculate(series::CUSUM{T,V}) where {T,V}
     c⁻ = similar(series.x)
     c⁺ = similar(series.x)
@@ -130,7 +179,8 @@ function calculate(series::CUSUM{T,V}) where {T,V}
 end#function
 
 # ** Exponentially Weighted Moving Average Chart (EWMA)
-
+# *** Basic EWMA
+# **** Types
 abstract type ExponentiallyWeightedMovingAverage{T,V} <: ControlSeries{T,V} end
 
 struct BasicExponentiallyWeightedMovingAverage{
@@ -214,6 +264,8 @@ end#constructor
     EWMA(x; λ=0.2, l=3.0, μ=mean(x), σ=std(x))
 """
 EWMA(x::AbstractVector; λ=0.2, L=3.0, μ=mean(x), σ=std(x)) = EWMA(x, λ, L, μ, σ)
+
+# **** calculate
 
 function predict_ewma(x::AbstractVector{T}, λ::Float64, μ::T) where T
     z = similar(x)

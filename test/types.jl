@@ -10,15 +10,18 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
 # details.
 
+# * types.jl
+
 using ControlCharts.Types
 
-@testset "Constructors" begin
-    @test_throws DomainError EWMA([1,2,3,4], 1.1, 3, 2, 1)
-    @test_throws DomainError EWMA([1,2,3,4], 2, 3, 2, 1)
-    @test_throws DomainError EWMA([1,2,3,4], -5, 3, 2, 1)
-    @test_throws DomainError EWMA([1,2,3,4], 0.5, -3, 2, 1)
-    @test_throws DomainError EWMA([1,2,3,4], 0.5, 3, 2, -1)
-end#@testset
+@testset "Shewart" begin
+    @test Shewart([1.0,2,1.5,3.1,-0.1]).μ ≈ 1.5
+    @test calculate(Shewart([1.0,2,1.5,3.1,-0.1])).z.x[1] ≈ 1.0
+    @test calculate(Shewart([1.0,2,1.5,3.1,-0.1])).z.μ[1] ≈ 1.5
+end#testset
+
+# ** CUSUM tests
+# *** setup
 
 const x = [09.45,
            07.99,
@@ -54,6 +57,8 @@ const cusum = CUSUM(x, 0.5, 5, 10)
 const cusum_chart = calculate(cusum)
 const cusum_chart2 = ControlChart(cusum)
 
+# *** tests
+
 @testset "CUSUM" begin
     @test all(cusum_chart.z[1] .≈ cnegative)
     @test all(cusum_chart.z[2] .≈ cpositive)
@@ -61,6 +66,9 @@ const cusum_chart2 = ControlChart(cusum)
     @test all(cusum_chart.UCL .≈ 5)
     @test all(cusum_chart.z[1] .≈ cusum_chart2.z[1])
 end#@testset
+
+# ** EWMA tests
+# *** setup
 
 const z_ewma = [09.94500,
                 09.74950,
@@ -85,6 +93,16 @@ const cl_ewma = [0.27,
 
 const ewma = EWMA(x, 0.1, 2.7, 10, 1)
 const ewma_chart = calculate(ewma)
+
+# *** tests
+
+@testset "EWMA Constructors" begin
+    @test_throws DomainError EWMA([1,2,3,4], 1.1, 3, 2, 1)
+    @test_throws DomainError EWMA([1,2,3,4], 2, 3, 2, 1)
+    @test_throws DomainError EWMA([1,2,3,4], -5, 3, 2, 1)
+    @test_throws DomainError EWMA([1,2,3,4], 0.5, -3, 2, 1)
+    @test_throws DomainError EWMA([1,2,3,4], 0.5, 3, 2, -1)
+end#@testset
 
 @testset "EWMA" begin
     @test all(isapprox.(ewma_chart.z[1], z_ewma, atol=0.0001))

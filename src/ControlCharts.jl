@@ -15,3 +15,5 @@ module ControlCharts
 
 include("RepeatArrays.jl")
 include("Types.jl")
+
+end#module ControlCharts
