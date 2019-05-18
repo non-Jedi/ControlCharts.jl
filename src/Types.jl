@@ -1,15 +1,16 @@
-# This file is part of ControlSeriess.jl.
+# This file is part of ControlCharts.jl.
 #
-# ControlSeriess.jl is free software: you can redistribute it and/or modify it
-# under the terms of the GNU General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
+# ControlCharts.jl is free software: you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
 #
-# ControlSeriess.jl is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-# FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
-# details.
+# ControlCharts.jl is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
 
+# * Types.jl
 module Types
 
 export ControlChart, calculate,
@@ -56,13 +57,13 @@ Returns a `ControlChart` for a given series.
 """
 function calculate end
 
-# Shewart Charts
-#---------------
+# ** Shewart Charts
+
+# TODO: actually define Shewart chart stuff
 
 abstract type ShewartSeries{T,V} <: ControlSeries{T,V} end
 
-# Cumulative Sum Charts (CUSUM)
-#------------------------------
+# ** Cumulative Sum Charts (CUSUM)
 
 abstract type CumulativeSum{T,V} <: ControlSeries{T,V} end
 
@@ -128,8 +129,7 @@ function calculate(series::CUSUM{T,V}) where {T,V}
     ControlChart((C⁻=c⁻, C⁺=c⁺), lcl, ucl, series)
 end#function
 
-# Exponentially Weighted Moving Average Chart (EWMA)
-#---------------------------------------------------
+# ** Exponentially Weighted Moving Average Chart (EWMA)
 
 abstract type ExponentiallyWeightedMovingAverage{T,V} <: ControlSeries{T,V} end
 
@@ -242,6 +242,8 @@ function calculate(cs::EWMA)
     end#let
     ControlChart((z=z,), lcl, ucl, cs)
 end#function
+
+# *** Moving Centerline
 
 struct MovingCenterlineExponentiallyWeightedMovingAverage{
     T, V <: AbstractVector{T}
